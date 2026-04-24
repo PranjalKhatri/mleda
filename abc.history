@@ -1,0 +1,7 @@
+source -s abc.rc
+read data/designs/i2c.aig 
+write data/designs/i2c.aag
+write_aiger data/designs/i2c.aag
+write_aiger -ascii data/designs/i2c.aag
+read i2c.aig
+write i2c.aag

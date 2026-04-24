@@ -77,7 +77,7 @@ def train():
 
     # ---- load designs ----
     designs = build_designs(design_dir, power_dir, stats_dir, cache_dir)
-
+    print(f"Loaded {len(designs)} designs.")
     # ---- dataset ----
     dataset = PowerDataset(designs, recipe_dict)
 

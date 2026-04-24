@@ -26,7 +26,7 @@ def load_aig_as_graph(path, cache_dir=None):
 
     try:
         subprocess.run(
-            ['abc', '-c', f'read {path}; write {aag_path}'],
+            ['utils/aiger/aigtoaig', path, aag_path],
             check=True,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL
