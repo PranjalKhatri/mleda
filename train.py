@@ -45,7 +45,11 @@ def build_designs(design_dir, power_dir, stats_dir, cache_dir):
         graph = load_aig_as_graph(aig_path, cache_dir=cache_dir)
         df = load_design_csv(power_csv, stats_csv)
 
-        designs.append({"graph": graph, "df": df})
+        designs.append({
+            "graph": graph,
+            "df": df,
+            "name": name   # 🔥 ADD THIS
+        })
 
     return designs
 
@@ -97,6 +101,34 @@ def train(resume=False):
     # ---- load designs ----
     designs = build_designs(design_dir, power_dir, stats_dir, cache_dir)
     print(f"Loaded {len(designs)} designs.")
+
+    norm_dict = {}
+
+    for design in designs:
+        df = design['df']
+
+        cols = ['BUFF','NOT','AND','PI','PO','LP']
+
+        mean = df[cols].mean()
+        std = df[cols].std() + 1e-6
+
+        baseline_power = df['power'].quantile(0.75)
+
+        # store using design name (IMPORTANT)
+        # you need to add name in build_designs()
+        name = design.get("name", None)
+        if name is None:
+            raise ValueError("Design name missing. Add it in build_designs().")
+
+        norm_dict[name] = {
+            "mean": mean.values.tolist(),
+            "std": std.values.tolist(),
+            "baseline": float(baseline_power)
+        }
+
+    # save once
+    torch.save(norm_dict, os.path.join(ckpt_dir, "design_norms.pt"))
+    print("Saved design-wise normalization.")
 
     dataset = PowerDataset(designs, recipe_dict)
     print(f"Total samples: {len(dataset)}")

@@ -26,5 +26,6 @@ def load_recipes(script_dir):
             seq.append(vocab[op])
 
         recipes[sid] = seq
-
+    # print(f"Loaded {len(recipes)} recipes with {len(vocab)} unique operations.")
+    print("Vocabulary:", vocab)
     return recipes, vocab
