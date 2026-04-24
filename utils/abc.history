@@ -1,0 +1,20 @@
+source -s abc.rc
+read_bench des3_area.bench 
+strash
+write_aiger des3_area.aig
+read_bench i2c.bench 
+write_aiger i2c.aig
+read_bench sasc.bench 
+write_aig sasc.aig
+write_aiger sasc.aig
+read_bench spi.bench 
+write_aiger spi.aig
+source -s abc.rc
+read_bench usb_phy.bench 
+strash
+write_aiger usb_phy.aig
+read_beanch wb_dma.bench 
+read_bench wb_dma.bench 
+write_aiger wb_dma.aig
+read_bench simple_spi.bench 
+write_aiger simple_spi.aig
