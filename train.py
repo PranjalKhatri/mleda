@@ -105,7 +105,6 @@ def train():
 
     # ---- model ----
     model = PowerPredictor(vocab_size).to(device)
-
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
     criterion = nn.MSELoss()
 

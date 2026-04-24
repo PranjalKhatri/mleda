@@ -11,20 +11,36 @@ class AIGEncoder(nn.Module):
     def __init__(self, in_dim, hidden_dim):
         super().__init__()
 
+        # 🔥 separate edge encoders per layer
+        self.edge_encoder1 = nn.Linear(1, in_dim)
+        self.edge_encoder2 = nn.Linear(1, hidden_dim)
+
         nn1 = nn.Sequential(
             nn.Linear(in_dim, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, hidden_dim)
         )
 
+        nn2 = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim)
+        )
+
         self.conv1 = GINEConv(nn1)
-        self.conv2 = GINEConv(nn1)
+        self.conv2 = GINEConv(nn2)
 
     def forward(self, x, edge_index, edge_attr, batch):
-        x = self.conv1(x, edge_index, edge_attr)
+        # ---- layer 1 ----
+        e1 = self.edge_encoder1(edge_attr)
+        x = self.conv1(x, edge_index, e1)
         x = F.relu(x)
-        x = self.conv2(x, edge_index, edge_attr)
+
+        # ---- layer 2 ----
+        e2 = self.edge_encoder2(edge_attr)
+        x = self.conv2(x, edge_index, e2)
         x = F.relu(x)
+
         return global_mean_pool(x, batch)
 
 
