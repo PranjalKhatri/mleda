@@ -10,7 +10,6 @@ from aig_encoder import load_aig_as_graph
 
 import pandas as pd
 import os
-import random
 
 
 # -------------------------
@@ -19,8 +18,7 @@ import random
 def load_design_csv(power_csv, stats_csv):
     power_df = pd.read_csv(power_csv)
     stats_df = pd.read_csv(stats_csv)
-    df = pd.merge(power_df, stats_df, on="sid")
-    return df
+    return pd.merge(power_df, stats_df, on="sid")
 
 
 # -------------------------
@@ -47,18 +45,37 @@ def build_designs(design_dir, power_dir, stats_dir, cache_dir):
         graph = load_aig_as_graph(aig_path, cache_dir=cache_dir)
         df = load_design_csv(power_csv, stats_csv)
 
-        designs.append({
-            "graph": graph,
-            "df": df
-        })
+        designs.append({"graph": graph, "df": df})
 
     return designs
 
 
 # -------------------------
+# Save checkpoint
+# -------------------------
+def save_checkpoint(model, optimizer, epoch, best_val, path):
+    torch.save({
+        "model": model.state_dict(),
+        "optimizer": optimizer.state_dict(),
+        "epoch": epoch,
+        "best_val": best_val
+    }, path)
+
+
+# -------------------------
+# Load checkpoint
+# -------------------------
+def load_checkpoint(model, optimizer, path, device):
+    ckpt = torch.load(path, map_location=device)
+    model.load_state_dict(ckpt["model"])
+    optimizer.load_state_dict(ckpt["optimizer"])
+    return ckpt["epoch"], ckpt["best_val"]
+
+
+# -------------------------
 # Train
 # -------------------------
-def train():
+def train(resume=False):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -68,6 +85,8 @@ def train():
     power_dir = "data/power"
     stats_dir = "data/stats"
     cache_dir = "cache/"
+    ckpt_dir = "checkpoints/"
+    os.makedirs(ckpt_dir, exist_ok=True)
 
     # ---- load recipes ----
     recipe_dict, vocab = load_recipes(script_dir)
@@ -78,38 +97,38 @@ def train():
     # ---- load designs ----
     designs = build_designs(design_dir, power_dir, stats_dir, cache_dir)
     print(f"Loaded {len(designs)} designs.")
-    # ---- dataset ----
-    dataset = PowerDataset(designs, recipe_dict)
 
+    dataset = PowerDataset(designs, recipe_dict)
     print(f"Total samples: {len(dataset)}")
 
     # ---- split ----
-    train_size = int(0.9 * len(dataset))
-    val_size = len(dataset) - train_size
+    train_size = int(0.8 * len(dataset))
+    val_size = int(0.1 * len(dataset))
+    test_size = len(dataset) - train_size - val_size
 
-    train_set, val_set = random_split(dataset, [train_size, val_size])
+    train_set, val_set, test_set = random_split(dataset, [train_size, val_size, test_size])
 
-    train_loader = DataLoader(
-        train_set,
-        batch_size=8,
-        shuffle=True,
-        collate_fn=collate_fn
-    )
-
-    val_loader = DataLoader(
-        val_set,
-        batch_size=8,
-        shuffle=False,
-        collate_fn=collate_fn
-    )
+    train_loader = DataLoader(train_set, batch_size=8, shuffle=True, collate_fn=collate_fn)
+    val_loader = DataLoader(val_set, batch_size=8, shuffle=False, collate_fn=collate_fn)
+    test_loader = DataLoader(test_set, batch_size=8, shuffle=False, collate_fn=collate_fn)
 
     # ---- model ----
     model = PowerPredictor(vocab_size).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
     criterion = nn.MSELoss()
 
+    start_epoch = 0
+    best_val = float("inf")
+
+    # ---- resume ----
+    if resume and os.path.exists(f"{ckpt_dir}/last.pt"):
+        print("Resuming training...")
+        start_epoch, best_val = load_checkpoint(
+            model, optimizer, f"{ckpt_dir}/last.pt", device
+        )
+
     # ---- training loop ----
-    for epoch in range(20):
+    for epoch in range(start_epoch, 40):
         model.train()
         total_loss = 0
 
@@ -124,7 +143,6 @@ def train():
             optimizer.zero_grad()
 
             pred = model(graph, recipe, lengths, stats, baseline)
-
             loss = criterion(pred, target)
 
             loss.backward()
@@ -146,16 +164,71 @@ def train():
                 target = target.to(device)
 
                 pred = model(graph, recipe, lengths, stats, baseline)
-                loss = criterion(pred, target)
+                val_loss += criterion(pred, target).item()
 
-                val_loss += loss.item()
+        print(f"Epoch {epoch:02d} | Train: {total_loss:.4f} | Val: {val_loss:.4f}")
 
-        print(f"Epoch {epoch:02d} | Train Loss: {total_loss:.4f} | Val Loss: {val_loss:.4f}")
+        # ---- save last ----
+        save_checkpoint(model, optimizer, epoch, best_val, f"{ckpt_dir}/last.pt")
 
-    # ---- save model ----
-    torch.save(model.state_dict(), "power_predictor.pt")
-    print("Model saved.")
+        # ---- save best ----
+        if val_loss < best_val:
+            best_val = val_loss
+            save_checkpoint(model, optimizer, epoch, best_val, f"{ckpt_dir}/best.pt")
+            print("Saved BEST checkpoint")
+
+    # ---- test ----
+    print("\nRunning test set...")
+    model.eval()
+    test_loss = 0
+
+    with torch.no_grad():
+        for graph, recipe, lengths, stats, baseline, target in test_loader:
+            graph = graph.to(device)
+            recipe = recipe.to(device)
+            lengths = lengths.to(device)
+            stats = stats.to(device)
+            baseline = baseline.to(device)
+            target = target.to(device)
+
+            pred = model(graph, recipe, lengths, stats, baseline)
+            test_loss += criterion(pred, target).item()
+
+    print(f"Test Loss: {test_loss:.4f}")
+
+
+# -------------------------
+# Inference
+# -------------------------
+def predict(model_path, aig_path, recipe_seq, stats, baseline, vocab, device="cpu"):
+
+    device = torch.device(device)
+
+    # load model
+    model = PowerPredictor(len(vocab)).to(device)
+    ckpt = torch.load(model_path, map_location=device)
+    model.load_state_dict(ckpt["model"])
+    model.eval()
+
+    # graph
+    graph = load_aig_as_graph(aig_path, cache_dir="cache/")
+    from torch_geometric.data import Batch
+    graph = Batch.from_data_list([graph]).to(device)
+
+    # recipe
+    recipe = torch.tensor([recipe_seq], dtype=torch.long).to(device)
+    lengths = torch.tensor([len(recipe_seq)]).to(device)
+
+    stats = torch.tensor([stats], dtype=torch.float).to(device)
+    baseline = torch.tensor([[baseline]], dtype=torch.float).to(device)
+
+    with torch.no_grad():
+        delta = model(graph, recipe, lengths, stats, baseline)
+
+    pred_power = delta.item() + baseline.item()
+
+    return pred_power
 
 
 if __name__ == "__main__":
-    train()
+    train(resume=False)

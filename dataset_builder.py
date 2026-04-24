@@ -30,7 +30,7 @@ class PowerDataset(Dataset):
             if 0 not in df['sid'].values:
                 raise ValueError("sid=0 not found for baseline. Fix your dataset.")
 
-            baseline_power = df[df['sid'] == 0]['power'].values[0]
+            baseline_power = df['power'].quantile(0.75)
 
             for _, row in df.iterrows():
                 sid = int(row['sid'])
