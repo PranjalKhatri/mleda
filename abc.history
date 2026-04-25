@@ -8,3 +8,36 @@ write i2c.aag
 read tv80_orig.bench 
 write tv80_orig.aig
 strash
+read testing/nangate45.lib 
+read_lib testing/nangate45.lib
+read data/designs/i2c.aig 
+balance
+refactor
+resub
+rewrite
+rewrite -z
+resub -z
+print_stats -p
+source -s abc.rc
+read ./data/designs/i2c.aig 
+read testing/nangate45.lib 
+read_lib testing/nangate45.lib
+read data/designs/i2c.aig 
+refactor
+refactor -z
+resub
+read ./data/designs/i2c.aig
+read testing/nangate45.lib
+read ./data/designs/i2c.aig
+read testing/nangate45.lib
+resub -z
+rewrite
+rewrite -z
+balance
+print_stats -p
+source -s abc.rc
+read nangate45
+read nangate45.lib 
+read_lib nangate45.lib
+read ./data/designs/i2c.aig 
+resyn

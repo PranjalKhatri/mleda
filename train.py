@@ -21,11 +21,11 @@ def load_design_csv(power_csv, stats_csv):
 
     df = pd.merge(power_df, stats_df, on="sid")
 
-    # 🔥 normalize column names to match dataset
+    # normalize column names (still useful for future)
     df.rename(columns={
         'pi': 'PI',
         'po': 'PO',
-        'nd': 'AND',      # ND ≈ AND proxy
+        'nd': 'AND',
         'lev': 'Level'
     }, inplace=True)
 
@@ -114,28 +114,22 @@ def train(resume=False):
     print(f"Loaded {len(designs)} designs.")
 
     # -------------------------
-    # 🔥 SAVE DESIGN-WISE NORMALIZATION
+    # 🔥 SAVE BASELINE ONLY (stats removed)
     # -------------------------
     norm_dict = {}
-
-    cols = ['PI', 'PO', 'AND', 'edges', 'Level']
 
     for design in designs:
         df = design['df']
         name = design['name']
 
-        mean = df[cols].mean()
-        std = df[cols].std() + 1e-6
         baseline_power = df['Power'].quantile(0.75)
 
         norm_dict[name] = {
-            "mean": mean.values.tolist(),
-            "std": std.values.tolist(),
             "baseline": float(baseline_power)
         }
 
     torch.save(norm_dict, os.path.join(ckpt_dir, "design_norms.pt"))
-    print("Saved design-wise normalization.")
+    print("Saved design-wise baseline.")
 
     # ---- dataset ----
     dataset = PowerDataset(designs, recipe_dict)
@@ -167,22 +161,23 @@ def train(resume=False):
             model, optimizer, f"{ckpt_dir}/last.pt", device
         )
 
-    # ---- training loop ----
+    # -------------------------
+    # TRAIN LOOP
+    # -------------------------
     for epoch in range(start_epoch, 40):
         model.train()
         total_loss = 0
 
-        for graph, recipe, lengths, stats, baseline, target in train_loader:
+        for graph, recipe, lengths, baseline, target in train_loader:
             graph = graph.to(device)
             recipe = recipe.to(device)
             lengths = lengths.to(device)
-            stats = stats.to(device)
             baseline = baseline.to(device)
             target = target.to(device)
 
             optimizer.zero_grad()
 
-            pred = model(graph, recipe, lengths, stats, baseline)
+            pred = model(graph, recipe, lengths, baseline)
             loss = criterion(pred, target)
 
             loss.backward()
@@ -195,15 +190,14 @@ def train(resume=False):
         val_loss = 0
 
         with torch.no_grad():
-            for graph, recipe, lengths, stats, baseline, target in val_loader:
+            for graph, recipe, lengths, baseline, target in val_loader:
                 graph = graph.to(device)
                 recipe = recipe.to(device)
                 lengths = lengths.to(device)
-                stats = stats.to(device)
                 baseline = baseline.to(device)
                 target = target.to(device)
 
-                pred = model(graph, recipe, lengths, stats, baseline)
+                pred = model(graph, recipe, lengths, baseline)
                 val_loss += criterion(pred, target).item()
 
         print(f"Epoch {epoch:02d} | Train: {total_loss:.4f} | Val: {val_loss:.4f}")
@@ -221,15 +215,14 @@ def train(resume=False):
     test_loss = 0
 
     with torch.no_grad():
-        for graph, recipe, lengths, stats, baseline, target in test_loader:
+        for graph, recipe, lengths, baseline, target in test_loader:
             graph = graph.to(device)
             recipe = recipe.to(device)
             lengths = lengths.to(device)
-            stats = stats.to(device)
             baseline = baseline.to(device)
             target = target.to(device)
 
-            pred = model(graph, recipe, lengths, stats, baseline)
+            pred = model(graph, recipe, lengths, baseline)
             test_loss += criterion(pred, target).item()
 
     print(f"Test Loss: {test_loss:.4f}")
