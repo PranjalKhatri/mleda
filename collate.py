@@ -7,14 +7,13 @@ def collate_fn(batch):
     graphs = [item['graph'] for item in batch]
     recipes = [item['recipe'] for item in batch]
 
-    stats = torch.stack([item['stats'] for item in batch])
     baseline = torch.stack([item['baseline'] for item in batch])
     target = torch.stack([item['target'] for item in batch])
 
     # --- recipe lengths ---
     lengths = torch.tensor([len(r) for r in recipes], dtype=torch.long)
 
-    # --- padding directly with 0 (matches embedding padding_idx=0) ---
+    # --- padding (0 is safe: matches embedding padding_idx=0) ---
     recipes_padded = pad_sequence(
         recipes,
         batch_first=True,
@@ -28,7 +27,6 @@ def collate_fn(batch):
         graph_batch,
         recipes_padded,
         lengths,
-        stats,
         baseline,
         target
     )

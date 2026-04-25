@@ -11,7 +11,6 @@ class AIGEncoder(nn.Module):
     def __init__(self, in_dim, hidden_dim):
         super().__init__()
 
-        # 🔥 separate edge encoders per layer
         self.edge_encoder1 = nn.Linear(1, in_dim)
         self.edge_encoder2 = nn.Linear(1, hidden_dim)
 
@@ -31,12 +30,10 @@ class AIGEncoder(nn.Module):
         self.conv2 = GINEConv(nn2)
 
     def forward(self, x, edge_index, edge_attr, batch):
-        # ---- layer 1 ----
         e1 = self.edge_encoder1(edge_attr)
         x = self.conv1(x, edge_index, e1)
         x = F.relu(x)
 
-        # ---- layer 2 ----
         e2 = self.edge_encoder2(edge_attr)
         x = self.conv2(x, edge_index, e2)
         x = F.relu(x)
@@ -45,13 +42,13 @@ class AIGEncoder(nn.Module):
 
 
 # -------------------------
-# Recipe Encoder (FIXED)
+# Recipe Encoder
 # -------------------------
 class RecipeEncoder(nn.Module):
     def __init__(self, vocab_size, emb_dim, hidden_dim):
         super().__init__()
         self.embedding = nn.Embedding(
-            vocab_size + 1,   # +1 for padding
+            vocab_size + 1,
             emb_dim,
             padding_idx=0
         )
@@ -72,20 +69,20 @@ class RecipeEncoder(nn.Module):
 
 
 # -------------------------
-# Stats Encoder
+# (OPTIONAL) Stats Encoder (kept for future)
 # -------------------------
-class StatsEncoder(nn.Module):
-    def __init__(self, in_dim):
-        super().__init__()
-        self.mlp = nn.Sequential(
-            nn.Linear(in_dim, 32),
-            nn.ReLU(),
-            nn.LayerNorm(32),
-            nn.Linear(32, 32)
-        )
-
-    def forward(self, stats):
-        return self.mlp(stats)
+# class StatsEncoder(nn.Module):
+#     def __init__(self, in_dim):
+#         super().__init__()
+#         self.mlp = nn.Sequential(
+#             nn.Linear(in_dim, 32),
+#             nn.ReLU(),
+#             nn.LayerNorm(32),
+#             nn.Linear(32, 32)
+#         )
+#
+#     def forward(self, stats):
+#         return self.mlp(stats)
 
 
 # -------------------------
@@ -97,18 +94,19 @@ class PowerPredictor(nn.Module):
 
         self.graph_encoder = AIGEncoder(in_dim=5, hidden_dim=128)
         self.recipe_encoder = RecipeEncoder(vocab_size, emb_dim=32, hidden_dim=64)
-        
-        self.stats_encoder = StatsEncoder(in_dim=5)
+
+        # self.stats_encoder = StatsEncoder(in_dim=5)
+
         self.head = nn.Sequential(
-            nn.Linear(128 + 64 + 32 + 1, 128),
+            nn.Linear(128 + 64 + 1, 128),   # 🔥 FIXED
             nn.ReLU(),
-            nn.LayerNorm(128),   # 🔥 add
+            nn.LayerNorm(128),
             nn.Linear(128, 64),
             nn.ReLU(),
             nn.Linear(64, 1)
         )
 
-    def forward(self, data, recipe, lengths, stats, baseline):
+    def forward(self, data, recipe, lengths, baseline):
         g = self.graph_encoder(
             data.x,
             data.edge_index,
@@ -117,7 +115,8 @@ class PowerPredictor(nn.Module):
         )
 
         r = self.recipe_encoder(recipe, lengths)
-        s = self.stats_encoder(stats)
 
-        x = torch.cat([g, r, s, baseline], dim=1)
+        # s = self.stats_encoder(stats)
+
+        x = torch.cat([g, r, baseline], dim=1)
         return self.head(x)

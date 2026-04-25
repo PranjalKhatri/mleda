@@ -4,7 +4,7 @@ import copy
 
 
 # -------------------------
-# Normalize per design
+# Normalize per design (kept for future use)
 # -------------------------
 def normalize_df(df):
     cols = ['PI', 'PO', 'AND', 'edges', 'Level']
@@ -33,9 +33,9 @@ class PowerDataset(Dataset):
             df = design['df'].copy()
 
             # -------------------------
-            # Normalize stats (design-wise)
+            # (OPTIONAL) Normalize stats
             # -------------------------
-            df, mean, std = normalize_df(df)
+            # df, mean, std = normalize_df(df)
 
             # -------------------------
             # Baseline (top 25%)
@@ -62,17 +62,19 @@ class PowerDataset(Dataset):
                         dtype=torch.long
                     ),
 
-                    # ✅ ONLY ABC STATS
-                    "stats": torch.tensor(
-                        [
-                            row['PI'],
-                            row['PO'],
-                            row['AND'],    # (acts like ND proxy)
-                            row['edges'],
-                            row['Level']
-                        ],
-                        dtype=torch.float
-                    ),
+                    # -------------------------
+                    # ❌ REMOVED STATS (constant per design → useless)
+                    # -------------------------
+                    # "stats": torch.tensor(
+                    #     [
+                    #         row['PI'],
+                    #         row['PO'],
+                    #         row['AND'],
+                    #         row['edges'],
+                    #         row['Level']
+                    #     ],
+                    #     dtype=torch.float
+                    # ),
 
                     "baseline": torch.tensor(
                         [baseline_power],
