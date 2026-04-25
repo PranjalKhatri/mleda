@@ -1,0 +1,53 @@
+source -s abc.rc
+read ethernet_orig.bench 
+strash
+write_aiger ethernet_orig.aig 
+read ethernet.aig 
+resyn
+resyn2
+read ethernet.aig
+read_lib nangate45.lib 
+print_stats -p
+print_stats
+stime -c
+map 
+print_gates
+source -s abc.rc
+read ../data/designs/i2c.aig 
+read nangate45.lib 
+read_lib nangate45.lib
+strash
+refactor -x
+refactor -z
+rebalance
+balance
+rewrite
+rewrite -z
+resub
+resub -z
+refactor
+topo
+stime -c
+print_stats
+print_stats -p
+source -s abc.rc
+read ../data/designs/i2c.aig 
+resyn
+read nangate45.lib 
+read_lib nangate45.lib
+map 
+resyn2
+c2rs
+raed nangate45.lib 
+print_stats
+print_gates
+print_stats -p
+print_gates --help
+print_gates 
+source -s abc.rc
+read ../data/designs/i2c.aig 
+read nangate45.lib 
+read_lib nangate45.lib
+resyn
+raed ../data/designs/i2c.aig 
+rred ../data/designs/i2c.aig 

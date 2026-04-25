@@ -3,10 +3,18 @@ from torch.utils.data import Dataset
 import copy
 
 
+# -------------------------
+# Normalize per design
+# -------------------------
 def normalize_df(df):
-    cols = ['BUFF', 'NOT', 'AND', 'PI', 'PO', 'LP']
-    df[cols] = (df[cols] - df[cols].mean()) / (df[cols].std() + 1e-6)
-    return df
+    cols = ['PI', 'PO', 'AND', 'edges', 'Level']
+
+    mean = df[cols].mean()
+    std = df[cols].std() + 1e-6
+
+    df[cols] = (df[cols] - mean) / std
+
+    return df, mean, std
 
 
 class PowerDataset(Dataset):
@@ -14,7 +22,8 @@ class PowerDataset(Dataset):
         """
         designs: list of dicts {
             'graph': pyg_data,
-            'df': merged dataframe
+            'df': merged dataframe,
+            'name': design_name
         }
         """
         self.samples = []
@@ -23,26 +32,29 @@ class PowerDataset(Dataset):
             graph = design['graph']
             df = design['df'].copy()
 
-            # normalize stats
-            df = normalize_df(df)
+            # -------------------------
+            # Normalize stats (design-wise)
+            # -------------------------
+            df, mean, std = normalize_df(df)
 
-            # --- baseline handling ---
-            if 0 not in df['sid'].values:
-                raise ValueError("sid=0 not found for baseline. Fix your dataset.")
+            # -------------------------
+            # Baseline (top 25%)
+            # -------------------------
+            baseline_power = df['Power'].quantile(0.75)
 
-            baseline_power = df['power'].quantile(0.75)
-
+            # -------------------------
+            # Build samples
+            # -------------------------
             for _, row in df.iterrows():
                 sid = int(row['sid'])
 
                 if sid not in recipe_dict:
-                    continue  # skip if missing recipe
+                    continue
 
-                # --- delta target ---
-                delta_power = row['power'] - baseline_power
+                delta_power = row['Power'] - baseline_power
 
                 sample = {
-                    # IMPORTANT: deepcopy graph to avoid PyG batch corruption
+                    # deepcopy required for PyG safety
                     "graph": copy.deepcopy(graph),
 
                     "recipe": torch.tensor(
@@ -50,14 +62,14 @@ class PowerDataset(Dataset):
                         dtype=torch.long
                     ),
 
+                    # ✅ ONLY ABC STATS
                     "stats": torch.tensor(
                         [
-                            row['BUFF'],
-                            row['NOT'],
-                            row['AND'],
                             row['PI'],
                             row['PO'],
-                            row['LP']
+                            row['AND'],    # (acts like ND proxy)
+                            row['edges'],
+                            row['Level']
                         ],
                         dtype=torch.float
                     ),
@@ -67,7 +79,7 @@ class PowerDataset(Dataset):
                         dtype=torch.float
                     ),
 
-                    # target is now DELTA
+                    # delta target
                     "target": torch.tensor(
                         [delta_power],
                         dtype=torch.float

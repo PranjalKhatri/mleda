@@ -80,6 +80,7 @@ class StatsEncoder(nn.Module):
         self.mlp = nn.Sequential(
             nn.Linear(in_dim, 32),
             nn.ReLU(),
+            nn.LayerNorm(32),
             nn.Linear(32, 32)
         )
 
@@ -96,11 +97,12 @@ class PowerPredictor(nn.Module):
 
         self.graph_encoder = AIGEncoder(in_dim=5, hidden_dim=128)
         self.recipe_encoder = RecipeEncoder(vocab_size, emb_dim=32, hidden_dim=64)
-        self.stats_encoder = StatsEncoder(in_dim=6)
-
+        
+        self.stats_encoder = StatsEncoder(in_dim=5)
         self.head = nn.Sequential(
             nn.Linear(128 + 64 + 32 + 1, 128),
             nn.ReLU(),
+            nn.LayerNorm(128),   # 🔥 add
             nn.Linear(128, 64),
             nn.ReLU(),
             nn.Linear(64, 1)

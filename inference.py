@@ -1,28 +1,20 @@
-from predictor import PowerPredictorInference
 import torch
-import os
+from predictor import PowerPredictorInference
 
+# -------------------------
+# Init predictor (handles norms internally)
+# -------------------------
 predictor = PowerPredictorInference(
     model_path="checkpoints/best.pt",
     script_dir="data/scripts",
+    norm_path="checkpoints/design_norms.pt",
     device="cuda"
 )
 
 # -------------------------
-# Load normalization info
-# -------------------------
-norms = torch.load("checkpoints/design_norms.pt")
-
-design_name = "i2c"   # 🔥 must match filename
-info = norms[design_name]
-
-mean = info["mean"]
-std = info["std"]
-baseline = info["baseline"]   # 🔥 DO NOT hardcode anymore
-
-# -------------------------
 # Inputs
 # -------------------------
+design_name = "i2c"
 aig = "./data/designs/i2c.aig"
 
 recipe = [
@@ -32,17 +24,18 @@ recipe = [
     "resub -z","balance","refactor -z","resub","balance"
 ]
 
-# RAW stats (from ABC or wherever)
-stats = [928,1030,915,177,128,15]
-
-# -------------------------
-# 🔥 Normalize stats (CRITICAL)
-# -------------------------
-stats_norm = [(s - m) / (st + 1e-6) for s, m, st in zip(stats, mean, std)]
+# 🔥 RAW ABC stats ONLY (no normalization here)
+# Format must match training: [PI, PO, AND, edges, LEVEL]
+stats = [177, 128, 915, 1030, 15]
 
 # -------------------------
 # Predict
 # -------------------------
-power = predictor.predict(aig, recipe, stats_norm, baseline)
+power = predictor.predict(
+    aig_path=aig,
+    recipe_ops=recipe,
+    raw_stats=stats,
+    design_name=design_name
+)
 
-print("Power:", power)
+print("Predicted Power:", power)

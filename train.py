@@ -18,7 +18,18 @@ import os
 def load_design_csv(power_csv, stats_csv):
     power_df = pd.read_csv(power_csv)
     stats_df = pd.read_csv(stats_csv)
-    return pd.merge(power_df, stats_df, on="sid")
+
+    df = pd.merge(power_df, stats_df, on="sid")
+
+    # 🔥 normalize column names to match dataset
+    df.rename(columns={
+        'pi': 'PI',
+        'po': 'PO',
+        'nd': 'AND',      # ND ≈ AND proxy
+        'lev': 'Level'
+    }, inplace=True)
+
+    return df
 
 
 # -------------------------
@@ -48,7 +59,7 @@ def build_designs(design_dir, power_dir, stats_dir, cache_dir):
         designs.append({
             "graph": graph,
             "df": df,
-            "name": name   # 🔥 ADD THIS
+            "name": name
         })
 
     return designs
@@ -102,23 +113,20 @@ def train(resume=False):
     designs = build_designs(design_dir, power_dir, stats_dir, cache_dir)
     print(f"Loaded {len(designs)} designs.")
 
+    # -------------------------
+    # 🔥 SAVE DESIGN-WISE NORMALIZATION
+    # -------------------------
     norm_dict = {}
+
+    cols = ['PI', 'PO', 'AND', 'edges', 'Level']
 
     for design in designs:
         df = design['df']
-
-        cols = ['BUFF','NOT','AND','PI','PO','LP']
+        name = design['name']
 
         mean = df[cols].mean()
         std = df[cols].std() + 1e-6
-
-        baseline_power = df['power'].quantile(0.75)
-
-        # store using design name (IMPORTANT)
-        # you need to add name in build_designs()
-        name = design.get("name", None)
-        if name is None:
-            raise ValueError("Design name missing. Add it in build_designs().")
+        baseline_power = df['Power'].quantile(0.75)
 
         norm_dict[name] = {
             "mean": mean.values.tolist(),
@@ -126,10 +134,10 @@ def train(resume=False):
             "baseline": float(baseline_power)
         }
 
-    # save once
     torch.save(norm_dict, os.path.join(ckpt_dir, "design_norms.pt"))
     print("Saved design-wise normalization.")
 
+    # ---- dataset ----
     dataset = PowerDataset(designs, recipe_dict)
     print(f"Total samples: {len(dataset)}")
 
@@ -140,9 +148,9 @@ def train(resume=False):
 
     train_set, val_set, test_set = random_split(dataset, [train_size, val_size, test_size])
 
-    train_loader = DataLoader(train_set, batch_size=8, shuffle=True, collate_fn=collate_fn)
-    val_loader = DataLoader(val_set, batch_size=8, shuffle=False, collate_fn=collate_fn)
-    test_loader = DataLoader(test_set, batch_size=8, shuffle=False, collate_fn=collate_fn)
+    train_loader = DataLoader(train_set, batch_size=4, shuffle=True, collate_fn=collate_fn)
+    val_loader = DataLoader(val_set, batch_size=4, shuffle=False, collate_fn=collate_fn)
+    test_loader = DataLoader(test_set, batch_size=4, shuffle=False, collate_fn=collate_fn)
 
     # ---- model ----
     model = PowerPredictor(vocab_size).to(device)
@@ -200,10 +208,8 @@ def train(resume=False):
 
         print(f"Epoch {epoch:02d} | Train: {total_loss:.4f} | Val: {val_loss:.4f}")
 
-        # ---- save last ----
         save_checkpoint(model, optimizer, epoch, best_val, f"{ckpt_dir}/last.pt")
 
-        # ---- save best ----
         if val_loss < best_val:
             best_val = val_loss
             save_checkpoint(model, optimizer, epoch, best_val, f"{ckpt_dir}/best.pt")
@@ -227,39 +233,6 @@ def train(resume=False):
             test_loss += criterion(pred, target).item()
 
     print(f"Test Loss: {test_loss:.4f}")
-
-
-# -------------------------
-# Inference
-# -------------------------
-def predict(model_path, aig_path, recipe_seq, stats, baseline, vocab, device="cpu"):
-
-    device = torch.device(device)
-
-    # load model
-    model = PowerPredictor(len(vocab)).to(device)
-    ckpt = torch.load(model_path, map_location=device)
-    model.load_state_dict(ckpt["model"])
-    model.eval()
-
-    # graph
-    graph = load_aig_as_graph(aig_path, cache_dir="cache/")
-    from torch_geometric.data import Batch
-    graph = Batch.from_data_list([graph]).to(device)
-
-    # recipe
-    recipe = torch.tensor([recipe_seq], dtype=torch.long).to(device)
-    lengths = torch.tensor([len(recipe_seq)]).to(device)
-
-    stats = torch.tensor([stats], dtype=torch.float).to(device)
-    baseline = torch.tensor([[baseline]], dtype=torch.float).to(device)
-
-    with torch.no_grad():
-        delta = model(graph, recipe, lengths, stats, baseline)
-
-    pred_power = delta.item() + baseline.item()
-
-    return pred_power
 
 
 if __name__ == "__main__":
