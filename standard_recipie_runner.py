@@ -26,34 +26,14 @@ def extract_power(abc_output):
         return float(match.group(1))
     return None
 
-def main():
-    if len(sys.argv) != 2:
-        print("Usage: python standard_recipie_runner.py <design_path>", file=sys.stderr)
-        print("Example: python standard_recipie_runner.py data/designs/i2c.aig", file=sys.stderr)
-        sys.exit(1)
-    
-    design_path = Path(sys.argv[1])
-    lib_path = Path("nangate45.lib")
-    
-    if not design_path.exists():
-        print(f"Error: Design file '{design_path}' not found.", file=sys.stderr)
-        sys.exit(1)
-        
-    if not lib_path.exists():
-        print(f"Error: Library file '{lib_path}' not found in the current directory.", file=sys.stderr)
-        sys.exit(1)
-
-    # Create output directory if it doesn't exist
-    output_dir = Path("abcStats")
-    output_dir.mkdir(exist_ok=True)
-    
-    # Generate output CSV filename based on design name
+def process_design(design_path, lib_path, output_dir):
+    """Process a single design and run all aliases."""
     design_name = design_path.stem
     output_csv = output_dir / f"{design_name}.csv"
     
     results = []
     
-    print(f"Running all aliases for {design_path}...")
+    print(f"\nRunning all aliases for {design_path}...")
     
     for alias in ALIASES:
         print(f"  Processing alias: {alias}...", end=" ", flush=True)
@@ -63,6 +43,7 @@ def main():
             f"read_lib {lib_path}",
             f"read {design_path}",
             alias,
+            "map",
             "print_stats -p"
         ]
         
@@ -100,10 +81,39 @@ def main():
             writer = csv.DictWriter(f, fieldnames=["alias", "power"])
             writer.writeheader()
             writer.writerows(results)
-        print(f"\nResults saved to {output_csv}")
+        print(f"  Results saved to {output_csv}")
     else:
-        print("Error: No results to save.", file=sys.stderr)
+        print(f"  WARNING: No results to save for {design_name}.")
+
+def main():
+    lib_path = Path("nangate45.lib")
+    
+    if not lib_path.exists():
+        print(f"Error: Library file '{lib_path}' not found in the current directory.", file=sys.stderr)
         sys.exit(1)
+
+    # Create output directory if it doesn't exist
+    output_dir = Path("abcStats")
+    output_dir.mkdir(exist_ok=True)
+    
+    # Find all .aig files in data/designs
+    designs_dir = Path("data/designs")
+    
+    if not designs_dir.exists():
+        print(f"Error: Designs directory '{designs_dir}' not found.", file=sys.stderr)
+        sys.exit(1)
+    
+    design_files = sorted(designs_dir.glob("*.aig"))
+    
+    if not design_files:
+        print(f"Error: No .aig files found in '{designs_dir}'.", file=sys.stderr)
+        sys.exit(1)
+    
+    print(f"Found {len(design_files)} design(s) to process")
+    
+    # Process each design
+    for design_path in design_files:
+        process_design(design_path, lib_path, output_dir)
 
 if __name__ == "__main__":
     main()
