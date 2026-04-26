@@ -1,7 +1,6 @@
-# from anneal import run_abc
 import torch
+import numpy as np
 from torch_geometric.data import Batch
-
 from model import PowerPredictor
 from aig_encoder import load_aig_as_graph
 from recipe_loader import load_recipes
@@ -9,9 +8,7 @@ import os
 import random
 import subprocess
 import re
-# -------------------------
-# Allowed ops
-# -------------------------
+
 OPS = [
     "balance",
     "rewrite",
@@ -22,18 +19,12 @@ OPS = [
     "resub -z"
 ]
 
+
 # -------------------------
-# ABC evaluation (REAL)
+# ABC evaluation
 # -------------------------
 def run_abc(aig_path, recipe, lib_path="nangate45.lib"):
-    """
-    Runs ABC with mapping + power estimation using Nangate45
-    Returns: float power
-    """
-
-    # build ABC script
     recipe_str = "; ".join(recipe)
-
     abc_cmd = (
         f"read_lib {lib_path}; "
         f"read {aig_path}; "
@@ -41,192 +32,201 @@ def run_abc(aig_path, recipe, lib_path="nangate45.lib"):
         f"map; "
         f"print_stats -p;"
     )
-
     try:
         result = subprocess.run(
             ["abc", "-c", abc_cmd],
-            capture_output=True,
-            text=True,
-            check=True
+            capture_output=True, text=True, check=True
         )
-
-        output = result.stdout
-
-        # -------------------------
-        # 🔥 Extract power via regex
-        # -------------------------
-        # Example line:
-        # i/o = 177/128 lat = 0 and = 1169 lev = 14 power = 926.44
-
-        match = re.search(r"power\s*=\s*([0-9]*\.?[0-9]+)", output)
-
+        match = re.search(r"power\s*=\s*([0-9]*\.?[0-9]+)", result.stdout)
         if not match:
             raise ValueError("Power not found in ABC output")
-
-        power = float(match.group(1))
-        return power
-
+        return float(match.group(1))
     except subprocess.CalledProcessError as e:
-        print("ABC failed!")
-        print(e.stderr)
+        print("ABC failed!", e.stderr)
         return float("inf")
 
 
+# -------------------------
+# Inference class
+# -------------------------
 class PowerPredictorInference:
-    def __init__(self, model_path, script_dir, norm_path, device="cpu"):
-        self.device = torch.device(device)
+    """
+    For trained designs  → predict() uses raw model output directly.
+
+    For unseen designs   → call adapt(aig_path, design_name, K=20) first.
+                           This runs K real ABC samples, compares model
+                           predictions on those same recipes to real values,
+                           and fits a linear correction  y = a*pred + b
+                           (least-squares, takes ~seconds).
+                           After adapt(), predict() applies the correction
+                           automatically so predictions are anchored to the
+                           real power range of the new design.
+    """
+
+    def __init__(self, model_path, script_dir, norm_path=None, device="cpu"):
+        self.device    = torch.device(device)
         self.norm_path = norm_path
 
-        # ---- vocab ----
         self.recipe_dict, self.vocab = load_recipes(script_dir)
         self.vocab_size = len(self.vocab)
-        self.op_to_idx = self.vocab
+        self.op_to_idx  = self.vocab
 
-        # ---- load norms ----
-        if os.path.exists(norm_path):
-            self.norms = torch.load(norm_path)
-        else:
-            self.norms = {}
-
-        # ---- model ----
         self.model = PowerPredictor(self.vocab_size).to(self.device)
         ckpt = torch.load(model_path, map_location=self.device)
         self.model.load_state_dict(ckpt["model"])
         self.model.eval()
 
-    # -------------------------
-    # Encode recipe
+        # design_name -> (a, b)  linear correction: real ≈ a*pred + b
+        self._corrections: dict[str, tuple[float, float]] = {}
+
+        # load previously saved corrections if available
+        if norm_path and os.path.exists(norm_path):
+            saved = torch.load(norm_path)
+            if "corrections" in saved:
+                self._corrections = saved["corrections"]
+
     # -------------------------
     def encode_recipe(self, recipe_ops):
         return [self.op_to_idx[op] for op in recipe_ops]
 
-    # -------------------------
-    # Generate random recipe
-    # -------------------------
     def random_recipe(self, length=20):
         return [random.choice(OPS) for _ in range(length)]
 
     # -------------------------
-    # 🔥 NEW: Initialize unseen design
-    # -------------------------
-    def initialize_design(self, aig_path, design_name, K=15):
-        """
-        Runs K random recipes via ABC to estimate baseline
-        """
-
-        print(f"\n[Init] Computing baseline for unseen design: {design_name}")
-
-        # from anneal_search import run_abc  # reuse your ABC runner
-
-        powers = []
-
-        for i in range(K):
-            recipe = self.random_recipe()
-            power = run_abc(aig_path, recipe)
-
-            if power != float("inf"):
-                powers.append(power)
-
-            print(f"  sample {i:02d}: {power:.4f}")
-
-        if len(powers) == 0:
-            raise RuntimeError("All ABC runs failed. Cannot initialize.")
-
-        # 🔥 same as training
-        baseline = float(torch.tensor(powers).quantile(0.75))
-
-        print(f"[Init] Baseline (75th percentile): {baseline:.4f}")
-
-        # save
-        self.norms[design_name] = {
-            "baseline": baseline
-        }
-
-        torch.save(self.norms, self.norm_path)
-        print("[Init] Saved to norms file")
-
-    # -------------------------
-    # Predict
-    # -------------------------
-    def predict(self, aig_path, recipe_ops, design_name):
-
-        # 🔥 auto-init if unseen
-        if design_name not in self.norms:
-            self.initialize_design(aig_path, design_name)
-
-        # --- graph ---
+    def _raw_predict(self, aig_path, recipe_ops):
+        """Model forward pass, no correction applied."""
         graph = load_aig_as_graph(aig_path, cache_dir="cache/")
         graph = Batch.from_data_list([graph]).to(self.device)
 
-        # --- recipe ---
-        recipe_seq = self.encode_recipe(recipe_ops)
-        recipe = torch.tensor([recipe_seq], dtype=torch.long).to(self.device)
-        lengths = torch.tensor([len(recipe_seq)]).to(self.device)
+        seq     = self.encode_recipe(recipe_ops)
+        recipe  = torch.tensor([seq], dtype=torch.long).to(self.device)
+        lengths = torch.tensor([len(seq)]).to(self.device)
 
-        # --- baseline ---
-        baseline_val = self.norms[design_name]["baseline"]
-        baseline = torch.tensor([[baseline_val]], dtype=torch.float).to(self.device)
-
-        # --- predict ---
         with torch.no_grad():
-            delta = self.model(graph, recipe, lengths, baseline)
+            pred = self.model(graph, recipe, lengths)
 
-        return delta.item() + baseline_val
+        return pred.item()
 
+    # -------------------------
+    def adapt(self, aig_path, design_name, K=20):
+        """
+        Test-time adaptation for an unseen design.
 
-# class PowerPredictorInference:
-#     def __init__(self, model_path, script_dir, norm_path, device="cpu"):
-#         self.device = torch.device(device)
+        Runs K diverse random recipes through ABC (real), gets the model's
+        raw prediction for each, then fits a linear map:
+            real_power ≈ a * model_pred + b
+        via least squares.
 
-#         # ---- load vocab ----
-#         self.recipe_dict, self.vocab = load_recipes(script_dir)
-#         self.vocab_size = len(self.vocab)
-#         self.op_to_idx = self.vocab
+        The model already learned *relative* recipe differences well —
+        adaptation just anchors it to the correct power scale and offset
+        for this new design. K=20 is usually enough; use K=30 if the
+        design is very different from training designs.
 
-#         # ---- load baseline info only ----
-#         self.norms = torch.load(norm_path)
+        After calling adapt(), predict() automatically applies the
+        correction for this design.
+        """
+        print(f"\n[Adapt] Fitting correction for unseen design: {design_name}")
+        print(f"        Running {K} ABC samples ...")
 
-#         # ---- load model ----
-#         self.model = PowerPredictor(self.vocab_size).to(self.device)
-#         ckpt = torch.load(model_path, map_location=self.device)
-#         self.model.load_state_dict(ckpt["model"])
-#         self.model.eval()
+        preds_raw = []
+        reals     = []
 
-#     # -------------------------
-#     # Encode recipe
-#     # -------------------------
-#     def encode_recipe(self, recipe_ops):
-#         seq = []
-#         for op in recipe_ops:
-#             if op not in self.op_to_idx:
-#                 raise ValueError(f"Unknown op: {op}")
-#             seq.append(self.op_to_idx[op])
-#         return seq
+        # use diverse seeds: spread across different op biases
+        seed_recipes = self._diverse_seeds(K)
 
-#     # -------------------------
-#     # Predict power
-#     # -------------------------
-#     def predict(self, aig_path, recipe_ops, design_name):
+        for i, recipe in enumerate(seed_recipes):
+            real = run_abc(aig_path, recipe)
+            if real == float("inf"):
+                continue
 
-#         # --- graph ---
-#         graph = load_aig_as_graph(aig_path, cache_dir="cache/")
-#         graph = Batch.from_data_list([graph]).to(self.device)
+            raw = self._raw_predict(aig_path, recipe)
+            preds_raw.append(raw)
+            reals.append(real)
+            print(f"  [{i:02d}] pred={raw:.2f}  real={real:.2f}")
 
-#         # --- recipe ---
-#         recipe_seq = self.encode_recipe(recipe_ops)
-#         recipe = torch.tensor([recipe_seq], dtype=torch.long).to(self.device)
-#         lengths = torch.tensor([len(recipe_seq)]).to(self.device)
+        if len(reals) < 4:
+            raise RuntimeError(
+                f"Only {len(reals)} successful ABC runs — cannot fit correction."
+            )
 
-#         # --- baseline (from training) ---
-#         if design_name not in self.norms:
-#             raise ValueError(f"Design {design_name} not found in norms file")
+        # least-squares fit:  real = a * pred + b
+        X = np.array(preds_raw).reshape(-1, 1)
+        y = np.array(reals)
+        # [X 1] @ [a, b]^T = y
+        A = np.hstack([X, np.ones_like(X)])
+        result, _, _, _ = np.linalg.lstsq(A, y, rcond=None)
+        a, b = float(result[0]), float(result[1])
 
-#         baseline_val = self.norms[design_name]["baseline"]
-#         baseline = torch.tensor([[baseline_val]], dtype=torch.float).to(self.device)
+        # sanity: if slope is negative the model's ordering is inverted,
+        # fall back to just a mean shift (b only, a=1)
+        if a <= 0:
+            print(f"  [warn] Negative slope ({a:.3f}), falling back to mean shift.")
+            a = 1.0
+            b = float(np.mean(y) - np.mean(preds_raw))
 
-#         # --- predict delta ---
-#         with torch.no_grad():
-#             delta = self.model(graph, recipe, lengths, baseline)
+        self._corrections[design_name] = (a, b)
+        print(f"[Adapt] Correction for '{design_name}': "
+              f"real ≈ {a:.4f} * pred + {b:.4f}")
 
-#         pred_power = delta.item() + baseline_val
-#         return pred_power
+        # save so we don't have to redo it next run
+        if self.norm_path:
+            existing = torch.load(self.norm_path) if os.path.exists(self.norm_path) else {}
+            existing["corrections"] = self._corrections
+            torch.save(existing, self.norm_path)
+            print(f"[Adapt] Saved correction to {self.norm_path}")
+
+        return a, b
+
+    # -------------------------
+    def predict(self, aig_path, recipe_ops, design_name=None):
+        """
+        Predict power for a recipe on an AIG.
+
+        If design_name is given and adapt() has been called for it,
+        applies the linear correction automatically.
+        Call adapt() before predict() for unseen designs.
+        """
+        raw = self._raw_predict(aig_path, recipe_ops)
+
+        if design_name and design_name in self._corrections:
+            a, b = self._corrections[design_name]
+            return a * raw + b
+
+        return raw
+
+    # -------------------------
+    def _diverse_seeds(self, K):
+        """
+        Returns K recipes that cover different parts of the op space.
+        First few are deterministic known-good recipes, rest are random.
+        """
+        seeds = [
+            # standard c2rs-style
+            ["balance","rewrite","rewrite -z","balance","rewrite -z",
+             "balance","refactor","rewrite","rewrite -z","balance",
+             "rewrite -z","balance","refactor","rewrite","rewrite -z",
+             "balance","rewrite -z","balance","refactor","rewrite"],
+            # resub heavy
+            ["resub","resub -z","resub","balance","resub -z",
+             "resub","rewrite","resub -z","resub","balance",
+             "resub -z","resub","rewrite -z","resub","balance",
+             "resub -z","resub","rewrite","resub -z","resub"],
+            # refactor heavy
+            ["refactor","refactor -z","balance","refactor","refactor -z",
+             "balance","refactor","refactor -z","balance","refactor",
+             "refactor -z","balance","refactor","refactor -z","balance",
+             "refactor","refactor -z","balance","refactor","refactor -z"],
+            # all balance
+            ["balance"] * 20,
+            # alternating rewrite/refactor
+            ["rewrite","refactor","rewrite -z","refactor -z","balance",
+             "rewrite","refactor","rewrite -z","refactor -z","balance",
+             "rewrite","refactor","rewrite -z","refactor -z","balance",
+             "rewrite","refactor","rewrite -z","refactor -z","balance"],
+        ]
+
+        # pad with random recipes up to K
+        while len(seeds) < K:
+            seeds.append(self.random_recipe())
+
+        return seeds[:K]

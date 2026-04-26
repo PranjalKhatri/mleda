@@ -1,27 +1,27 @@
 {
     "design": "max",
     "best_recipe": [
+        "balance",
+        "resub -z",
+        "resub -z",
+        "balance",
+        "balance",
+        "refactor",
         "resub -z",
         "rewrite -z",
         "resub -z",
-        "rewrite",
-        "resub",
+        "balance",
+        "refactor",
         "rewrite -z",
-        "resub",
-        "refactor -z",
-        "rewrite -z",
-        "rewrite",
-        "rewrite -z",
+        "balance",
         "resub -z",
-        "resub",
-        "resub",
-        "refactor",
-        "refactor",
-        "refactor",
         "refactor",
         "rewrite -z",
-        "balance"
+        "refactor",
+        "resub -z",
+        "refactor",
+        "rewrite -z"
     ],
-    "predicted_power": 2931.722102661133,
-    "real_power": 2997.96
+    "predicted_power": 2457.908935546875,
+    "real_power": 2742.34
 }
