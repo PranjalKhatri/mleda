@@ -164,7 +164,7 @@ def train(resume=False):
     # -------------------------
     # TRAIN LOOP
     # -------------------------
-    for epoch in range(start_epoch, 40):
+    for epoch in range(start_epoch, 30):
         model.train()
         total_loss = 0
 
@@ -229,4 +229,4 @@ def train(resume=False):
 
 
 if __name__ == "__main__":
-    train(resume=False)
+    train(resume=True)

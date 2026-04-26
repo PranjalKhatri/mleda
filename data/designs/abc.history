@@ -1,4 +1,0 @@
-source -s abc.rc
-read ethernet.bench 
-strash
-write_aiger ethernet.aig
