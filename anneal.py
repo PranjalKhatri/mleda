@@ -4,7 +4,7 @@ import subprocess
 import tempfile
 import os
 import re
-
+import json
 from predictor import PowerPredictorInference
 
 
@@ -27,10 +27,7 @@ OPS = [
 # -------------------------
 def get_initial_recipe(length=20):
     base = [
-        "refactor -z", "balance",
-        "rewrite", "rewrite -z",
-        "resub", "resub -z",
-        "balance"
+        "balance","rewrite","rewrite -z","balance","rewrite -z","balance","refactor"
     ]
     return (base * (length // len(base) + 1))[:length]
 
@@ -40,23 +37,34 @@ def get_initial_recipe(length=20):
 # -------------------------
 def mutate(recipe):
     r = recipe.copy()
-    op = random.choice(["swap", "replace", "insert", "delete"])
+    
+    # Pick 1 to 5 mutations, with higher probability for larger numbers
+    num_mutations = random.choices([1, 2, 3, 4, 5], weights=[1, 2, 3, 4, 5], k=1)[0]
 
-    if op == "swap" and len(r) >= 2:
-        i, j = random.sample(range(len(r)), 2)
-        r[i], r[j] = r[j], r[i]
+    for _ in range(num_mutations):
+        op = random.choice(["swap", "replace", "insert", "delete"])
 
-    elif op == "replace":
-        i = random.randrange(len(r))
-        r[i] = random.choice(OPS)
+        if op == "swap" and len(r) >= 2:
+            i, j = random.sample(range(len(r)), 2)
+            r[i], r[j] = r[j], r[i]
 
-    elif op == "insert":
-        i = random.randrange(len(r))
-        r.insert(i, random.choice(OPS))
+        elif op == "replace":
+            i = random.randrange(len(r))
+            r[i] = random.choice(OPS)
 
-    elif op == "delete" and len(r) > 5:
-        i = random.randrange(len(r))
-        r.pop(i)
+        elif op == "insert":
+            i = random.randrange(len(r))
+            r.insert(i, random.choice(OPS))
+
+        elif op == "delete" and len(r) > 5:
+            i = random.randrange(len(r))
+            r.pop(i)
+
+    # Enforce exact recipe size of 20
+    while len(r) > 20:
+        r.pop(random.randrange(len(r)))
+    while len(r) < 20:
+        r.insert(random.randrange(len(r) + 1), random.choice(OPS))
 
     return r
 
@@ -182,21 +190,59 @@ if __name__ == "__main__":
         device="cuda"
     )
 
-    aig = "./data/designs/i2c.aig"
-    design_name = "i2c"
+    design_dir = "./data/designs"
+    out_dir = "anneal_results"
+    os.makedirs(out_dir, exist_ok=True)
 
-    best_recipe, pred_power = simulated_annealing(
-        predictor,
-        aig,
-        design_name,
-        max_iters=200
-    )
+    for file in os.listdir(design_dir):
+        if not file.endswith(".aig"):
+            continue
 
-    print("\n🔥 Best Recipe Found:")
-    print(best_recipe)
-    print("Predicted Power:", pred_power)
+        design_name = file.replace(".aig", "")
+        aig = os.path.join(design_dir, file)
 
-    # final ground truth
-    real_power = run_abc(aig, best_recipe)
+        print(f"\n========================================")
+        print(f"Processing design: {design_name}")
+        print(f"========================================")
 
-    print("\n⚡ Real Power:", real_power)
+        try:
+            best_recipe, pred_power = simulated_annealing(
+                predictor,
+                aig,
+                design_name,
+                max_iters=200
+            )
+
+            print("\n🔥 Best Recipe Found:")
+            print(best_recipe)
+            print("Predicted Power:", pred_power)
+
+            # final ground truth
+            real_power = run_abc(aig, best_recipe)
+            print("\n⚡ Real Power:", real_power)
+
+            res_path = os.path.join(out_dir, f"{design_name}_results.json")
+            update_results = True
+
+            if os.path.exists(res_path):
+                try:
+                    with open(res_path, "r") as f:
+                        existing_data = json.load(f)
+                    if "real_power" in existing_data and real_power >= existing_data["real_power"]:
+                        update_results = False
+                        print(f"📉 Keeping existing result: {existing_data['real_power']} is better than or equal to {real_power}")
+                except Exception as e:
+                    print(f"⚠️ Could not read existing results for {design_name}: {e}")
+
+            if update_results:
+                with open(res_path, "w") as f:
+                    json.dump({
+                        "design": design_name,
+                        "best_recipe": best_recipe,
+                        "predicted_power": pred_power,
+                        "real_power": real_power
+                    }, f, indent=4)
+                print(f"✅ Results saved to {res_path}")
+
+        except ValueError as e:
+            print(f"⚠️ Skipping {design_name}: {e}")

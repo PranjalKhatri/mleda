@@ -1,9 +1,11 @@
+from anneal import run_abc
 import torch
 import random
 import os
 import json
 from torch_geometric.data import Batch
-
+import re
+import subprocess
 from model import PowerPredictor
 from aig_encoder import load_aig_as_graph
 from recipe_loader import load_recipes
@@ -65,7 +67,7 @@ class PowerPredictorInference:
 
         print(f"\n[Init] Computing baseline for unseen design: {design_name}")
 
-        from anneal_search import run_abc  # reuse your ABC runner
+        # from anneal_search import run_abc  # reuse your ABC runner
 
         powers = []
 
@@ -159,5 +161,6 @@ if __name__ == "__main__":
         recipe_ops=recipe,
         design_name=design_name
     )
-
+    real_power = run_abc(aig, recipe)
     print("\nPredicted Power:", power)
+    print("\nReal Power:", real_power)

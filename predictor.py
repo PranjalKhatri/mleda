@@ -1,9 +1,75 @@
+# from anneal import run_abc
 import torch
 from torch_geometric.data import Batch
 
 from model import PowerPredictor
 from aig_encoder import load_aig_as_graph
 from recipe_loader import load_recipes
+import os
+import random
+import subprocess
+import re
+# -------------------------
+# Allowed ops
+# -------------------------
+OPS = [
+    "balance",
+    "rewrite",
+    "rewrite -z",
+    "refactor",
+    "refactor -z",
+    "resub",
+    "resub -z"
+]
+
+# -------------------------
+# ABC evaluation (REAL)
+# -------------------------
+def run_abc(aig_path, recipe, lib_path="nangate45.lib"):
+    """
+    Runs ABC with mapping + power estimation using Nangate45
+    Returns: float power
+    """
+
+    # build ABC script
+    recipe_str = "; ".join(recipe)
+
+    abc_cmd = (
+        f"read_lib {lib_path}; "
+        f"read {aig_path}; "
+        f"{recipe_str}; "
+        f"map; "
+        f"print_stats -p;"
+    )
+
+    try:
+        result = subprocess.run(
+            ["abc", "-c", abc_cmd],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+
+        output = result.stdout
+
+        # -------------------------
+        # 🔥 Extract power via regex
+        # -------------------------
+        # Example line:
+        # i/o = 177/128 lat = 0 and = 1169 lev = 14 power = 926.44
+
+        match = re.search(r"power\s*=\s*([0-9]*\.?[0-9]+)", output)
+
+        if not match:
+            raise ValueError("Power not found in ABC output")
+
+        power = float(match.group(1))
+        return power
+
+    except subprocess.CalledProcessError as e:
+        print("ABC failed!")
+        print(e.stderr)
+        return float("inf")
 
 
 class PowerPredictorInference:
@@ -50,7 +116,7 @@ class PowerPredictorInference:
 
         print(f"\n[Init] Computing baseline for unseen design: {design_name}")
 
-        from anneal_search import run_abc  # reuse your ABC runner
+        # from anneal_search import run_abc  # reuse your ABC runner
 
         powers = []
 

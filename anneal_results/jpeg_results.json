@@ -1,0 +1,27 @@
+{
+    "design": "jpeg",
+    "best_recipe": [
+        "balance",
+        "resub -z",
+        "rewrite",
+        "rewrite -z",
+        "balance",
+        "rewrite -z",
+        "rewrite -z",
+        "refactor",
+        "balance",
+        "rewrite",
+        "rewrite -z",
+        "balance",
+        "rewrite -z",
+        "balance",
+        "refactor",
+        "balance",
+        "rewrite",
+        "balance",
+        "balance",
+        "balance"
+    ],
+    "predicted_power": 107823.39038085938,
+    "real_power": 106686.09
+}

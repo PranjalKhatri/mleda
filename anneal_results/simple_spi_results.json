@@ -5,12 +5,12 @@
         "resub -z",
         "rewrite -z",
         "refactor",
-        "balance",
-        "refactor",
-        "refactor",
         "resub -z",
         "refactor",
         "refactor",
+        "resub -z",
+        "balance",
+        "resub -z",
         "resub -z",
         "resub -z",
         "resub -z",
@@ -22,7 +22,7 @@
         "rewrite -z",
         "resub"
     ],
-    "predicted_power": 590.7506233978272,
-    "real_power": 585.17,
-    "temperature": 100
+    "predicted_power": 590.7512089538575,
+    "real_power": 581.33,
+    "temperature": 530
 }

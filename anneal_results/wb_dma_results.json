@@ -1,19 +1,19 @@
 {
     "design": "wb_dma",
     "best_recipe": [
-        "rewrite -z",
-        "rewrite",
-        "rewrite -z",
-        "rewrite",
-        "rewrite",
+        "refactor",
+        "resub -z",
         "rewrite -z",
         "refactor",
-        "rewrite",
-        "rewrite",
-        "resub",
         "balance",
+        "resub -z",
         "refactor",
         "refactor",
+        "balance",
+        "resub -z",
+        "refactor",
+        "refactor",
+        "resub -z",
         "resub -z",
         "resub -z",
         "resub -z",
@@ -22,7 +22,7 @@
         "rewrite -z",
         "resub"
     ],
-    "predicted_power": 2408.1382034301755,
-    "real_power": 2313.89,
-    "temperature": 310
+    "predicted_power": 2408.127323913574,
+    "real_power": 2300.07,
+    "temperature": 110
 }

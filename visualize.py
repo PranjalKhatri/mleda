@@ -22,6 +22,7 @@ def main():
     abc_powers_list = []
     anneal_powers_list = []
     diff_texts = []
+    improvements = []
 
     # Process each design
     for csv_path in csv_files:
@@ -44,8 +45,8 @@ def main():
                 continue
             # Filter out rows with excluded aliases
             if 'alias' in df.columns:
-                # df = df[~df['alias'].isin(EXCLUDED_ALIASES)]
-                df = df[df['alias'].isin(INCLUDE_ONLY_ALIASES)]
+                df = df[~df['alias'].isin(EXCLUDED_ALIASES)]
+                # df = df[df['alias'].isin(INCLUDE_ONLY_ALIASES)]
 
             # Convert to numeric, dropping any empty or malformed rows
             powers = pd.to_numeric(df['power'], errors='coerce').dropna().tolist()
@@ -80,15 +81,30 @@ def main():
             status = f"{abs(pct_diff):.1f}% worse"
             color = 'red'
 
-        # Store data for plotting
-        designs.append(design_name)
-        abc_powers_list.append(powers)
-        anneal_powers_list.append(anneal_power)
-        diff_texts.append((status, color))
+        # Store data for sorting
+        improvements.append({
+            'design': design_name,
+            'powers': powers,
+            'anneal_power': anneal_power,
+            'status': status,
+            'color': color,
+            'pct_diff': pct_diff
+        })
 
-    if not designs:
+    if not improvements:
         print("No valid data pairs found to plot.")
         return
+
+    # Sort by pct_diff (ascending - most negative/best improvements first) and keep top 6
+    improvements.sort(key=lambda x: x['pct_diff'])
+    improvements = improvements[:6]
+
+    # Extract sorted data for plotting
+    for imp in improvements:
+        designs.append(imp['design'])
+        abc_powers_list.append(imp['powers'])
+        anneal_powers_list.append(imp['anneal_power'])
+        diff_texts.append((imp['status'], imp['color']))
 
     # --- Plotting ---
     plt.figure(figsize=(14, 7))

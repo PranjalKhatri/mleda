@@ -78,7 +78,7 @@ def fine_tune():
     ckpt_path = "checkpoints/best.pt"
 
     # 🔥 specify new designs here
-    new_designs = ["new_design"]   # change this
+    new_designs = ["sqrt"]   # change this
 
     # ---- recipes ----
     recipe_dict, vocab = load_recipes(script_dir)
@@ -131,7 +131,7 @@ def fine_tune():
         model.train()
         total_loss = 0
 
-        for graph, recipe, lengths, stats, baseline, target in loader:
+        for graph, recipe, lengths, baseline, target in loader:
             graph = graph.to(device)
             recipe = recipe.to(device)
             lengths = lengths.to(device)

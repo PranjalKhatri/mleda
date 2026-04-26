@@ -1,0 +1,27 @@
+{
+    "design": "max",
+    "best_recipe": [
+        "resub -z",
+        "rewrite -z",
+        "resub -z",
+        "rewrite",
+        "resub",
+        "rewrite -z",
+        "resub",
+        "refactor -z",
+        "rewrite -z",
+        "rewrite",
+        "rewrite -z",
+        "resub -z",
+        "resub",
+        "resub",
+        "refactor",
+        "refactor",
+        "refactor",
+        "refactor",
+        "rewrite -z",
+        "balance"
+    ],
+    "predicted_power": 2931.722102661133,
+    "real_power": 2997.96
+}

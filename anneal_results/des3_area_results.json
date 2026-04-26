@@ -1,27 +1,27 @@
 {
     "design": "des3_area",
     "best_recipe": [
-        "balance",
+        "refactor",
         "rewrite -z",
-        "refactor",
-        "balance",
-        "balance",
-        "refactor",
+        "resub",
         "rewrite",
-        "resub -z",
-        "resub",
-        "resub",
+        "rewrite",
+        "rewrite -z",
+        "rewrite",
+        "rewrite",
         "refactor -z",
         "refactor",
-        "resub",
-        "balance",
-        "balance",
-        "resub",
-        "balance",
+        "rewrite -z",
+        "refactor",
         "rewrite -z",
         "rewrite -z",
-        "resub"
+        "rewrite",
+        "refactor -z",
+        "refactor",
+        "refactor",
+        "resub -z",
+        "balance"
     ],
-    "predicted_power": 3343.811844177246,
-    "real_power": 3322.86
+    "predicted_power": 3315.501083679199,
+    "real_power": 3306.03
 }
