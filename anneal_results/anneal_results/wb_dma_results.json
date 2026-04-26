@@ -1,0 +1,28 @@
+{
+    "design": "wb_dma",
+    "best_recipe": [
+        "refactor",
+        "resub -z",
+        "rewrite -z",
+        "refactor",
+        "balance",
+        "resub -z",
+        "refactor",
+        "refactor",
+        "balance",
+        "resub -z",
+        "refactor",
+        "refactor",
+        "resub -z",
+        "resub -z",
+        "resub -z",
+        "resub -z",
+        "refactor",
+        "rewrite -z",
+        "rewrite -z",
+        "resub"
+    ],
+    "predicted_power": 2408.127323913574,
+    "real_power": 2300.07,
+    "temperature": 110
+}

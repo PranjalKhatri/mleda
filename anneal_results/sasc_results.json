@@ -1,0 +1,28 @@
+{
+    "design": "sasc",
+    "best_recipe": [
+        "rewrite -z",
+        "refactor",
+        "balance",
+        "resub -z",
+        "refactor",
+        "refactor",
+        "refactor",
+        "resub -z",
+        "refactor",
+        "refactor",
+        "resub -z",
+        "resub -z",
+        "resub -z",
+        "resub -z",
+        "resub -z",
+        "resub -z",
+        "refactor",
+        "rewrite -z",
+        "rewrite -z",
+        "resub"
+    ],
+    "predicted_power": 538.1226370239258,
+    "real_power": 514.8,
+    "temperature": 20
+}

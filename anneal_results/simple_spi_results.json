@@ -1,0 +1,28 @@
+{
+    "design": "simple_spi",
+    "best_recipe": [
+        "refactor",
+        "resub -z",
+        "rewrite -z",
+        "refactor",
+        "balance",
+        "refactor",
+        "refactor",
+        "resub -z",
+        "refactor",
+        "refactor",
+        "resub -z",
+        "resub -z",
+        "resub -z",
+        "resub -z",
+        "resub -z",
+        "resub -z",
+        "refactor",
+        "rewrite -z",
+        "rewrite -z",
+        "resub"
+    ],
+    "predicted_power": 590.7506233978272,
+    "real_power": 585.17,
+    "temperature": 100
+}

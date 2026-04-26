@@ -1,0 +1,28 @@
+{
+    "design": "ss_pcm",
+    "best_recipe": [
+        "rewrite -z",
+        "refactor",
+        "balance",
+        "resub -z",
+        "refactor",
+        "refactor",
+        "refactor",
+        "balance",
+        "resub -z",
+        "resub -z",
+        "resub -z",
+        "resub -z",
+        "resub -z",
+        "resub -z",
+        "resub -z",
+        "resub -z",
+        "refactor",
+        "rewrite -z",
+        "rewrite -z",
+        "resub"
+    ],
+    "predicted_power": 354.667774887085,
+    "real_power": 325.82,
+    "temperature": 50
+}

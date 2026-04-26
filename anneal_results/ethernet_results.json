@@ -1,0 +1,28 @@
+{
+    "design": "ethernet",
+    "best_recipe": [
+        "rewrite -z",
+        "refactor",
+        "rewrite",
+        "refactor",
+        "resub",
+        "refactor",
+        "resub",
+        "rewrite",
+        "refactor",
+        "resub -z",
+        "balance",
+        "rewrite -z",
+        "rewrite -z",
+        "refactor",
+        "refactor -z",
+        "refactor",
+        "refactor",
+        "refactor",
+        "rewrite -z",
+        "resub"
+    ],
+    "predicted_power": 44733.83825195313,
+    "real_power": 41267.75,
+    "temperature": 110
+}

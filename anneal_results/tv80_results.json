@@ -1,0 +1,28 @@
+{
+    "design": "tv80",
+    "best_recipe": [
+        "refactor",
+        "resub -z",
+        "resub",
+        "balance",
+        "resub -z",
+        "resub -z",
+        "refactor",
+        "refactor",
+        "refactor",
+        "resub -z",
+        "resub -z",
+        "refactor",
+        "refactor",
+        "resub -z",
+        "resub -z",
+        "resub -z",
+        "refactor",
+        "rewrite -z",
+        "rewrite -z",
+        "resub"
+    ],
+    "predicted_power": 5260.364074707031,
+    "real_power": 5229.52,
+    "temperature": 220
+}

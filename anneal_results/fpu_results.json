@@ -1,0 +1,28 @@
+{
+    "design": "fpu",
+    "best_recipe": [
+        "resub",
+        "balance",
+        "balance",
+        "resub -z",
+        "refactor",
+        "refactor",
+        "resub -z",
+        "resub -z",
+        "refactor",
+        "refactor",
+        "resub -z",
+        "refactor",
+        "refactor",
+        "resub -z",
+        "resub -z",
+        "resub -z",
+        "refactor",
+        "rewrite -z",
+        "rewrite -z",
+        "resub"
+    ],
+    "predicted_power": 22649.890873413086,
+    "real_power": 22218.5,
+    "temperature": 300
+}

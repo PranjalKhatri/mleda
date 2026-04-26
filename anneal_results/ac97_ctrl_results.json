@@ -1,0 +1,28 @@
+{
+    "design": "ac97_ctrl",
+    "best_recipe": [
+        "refactor",
+        "resub -z",
+        "rewrite -z",
+        "refactor",
+        "balance",
+        "refactor",
+        "refactor",
+        "resub -z",
+        "refactor",
+        "refactor",
+        "resub -z",
+        "resub -z",
+        "resub -z",
+        "resub -z",
+        "resub -z",
+        "resub -z",
+        "refactor",
+        "rewrite -z",
+        "rewrite -z",
+        "resub"
+    ],
+    "predicted_power": 8717.26424194336,
+    "real_power": 8253.38,
+    "temperature": 220
+}

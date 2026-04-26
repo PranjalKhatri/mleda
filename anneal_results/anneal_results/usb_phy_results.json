@@ -1,0 +1,28 @@
+{
+    "design": "usb_phy",
+    "best_recipe": [
+        "rewrite",
+        "rewrite -z",
+        "refactor",
+        "rewrite",
+        "rewrite -z",
+        "refactor",
+        "balance",
+        "resub -z",
+        "refactor",
+        "refactor",
+        "refactor",
+        "resub -z",
+        "resub -z",
+        "resub -z",
+        "resub -z",
+        "resub -z",
+        "refactor",
+        "rewrite -z",
+        "rewrite -z",
+        "resub"
+    ],
+    "predicted_power": 369.18155250549313,
+    "real_power": 384.25,
+    "temperature": 570
+}
